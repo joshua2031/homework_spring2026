@@ -15,11 +15,13 @@ from torch.utils.data import Dataset
 PUSHT_URL = "https://diffusion-policy.cs.columbia.edu/data/training/pusht.zip"
 ZARR_RELATIVE_PATH = Path("pusht") / "pusht_cchi_v7_replay.zarr"
 
-
+# dataclass: do not need to implement __init__ func
+# frozen=True: fields cannot be modified
 @dataclass(frozen=True)
 class Normalizer:
     """Feature-wise normalizer for states and actions."""
 
+    # fields
     state_mean: np.ndarray
     state_std: np.ndarray
     action_mean: np.ndarray
@@ -29,6 +31,11 @@ class Normalizer:
     def _safe_std(std: np.ndarray, eps: float = 1e-6) -> np.ndarray:
         return np.maximum(std, eps)
 
+    # usage:
+    # S: states, A: actions
+    # normalizer = Normalizer.from_data(S, A)
+    # normalized_states = normalizer.normalize_state(S)
+    # normalized_actions = normalizer.normalize_action(A)
     @classmethod
     def from_data(cls, states: np.ndarray, actions: np.ndarray) -> "Normalizer":
         state_mean = states.mean(axis=0)
@@ -75,7 +82,11 @@ def load_pusht_zarr(zarr_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray
     episode_ends = np.asarray(root["meta"]["episode_ends"][:], dtype=np.int64)
     return states, actions, episode_ends
 
-
+"""
+    episode_ends = [5, 8, 12], chunk_size = 3
+    episodes: 0~4, 5~7, 8~11
+    indices = [0, 1, 2, 5, 8, 9]
+"""
 def build_valid_indices(episode_ends: np.ndarray, chunk_size: int) -> np.ndarray:
     starts = np.concatenate(([0], episode_ends[:-1]))
     indices: list[int] = []
@@ -104,6 +115,7 @@ class PushtChunkDataset(Dataset):
         self.normalizer = normalizer
         self.indices = build_valid_indices(episode_ends, chunk_size)
 
+    # number of valid (state, action_chunk)
     def __len__(self) -> int:
         return len(self.indices)
 

@@ -46,21 +46,37 @@ class MSEPolicy(BasePolicy):
         hidden_dims: tuple[int, ...] = (128, 128),
     ) -> None:
         super().__init__(state_dim, action_dim, chunk_size)
+        self.linear1 = nn.Linear(state_dim, hidden_dims[0])
+        self.linear2 = nn.Linear(hidden_dims[0], hidden_dims[1])
+        self.linear3 = nn.Linear(hidden_dims[1], chunk_size * action_dim)
+        self.relu = nn.ReLU()
 
     def compute_loss(
         self,
+        # state: (B, state_dim)
         state: torch.Tensor,
+        # action_chunk: (B, chunk_size, action_dim)
         action_chunk: torch.Tensor,
     ) -> torch.Tensor:
-        raise NotImplementedError
-
+        action = self.sample_actions(state)
+        return torch.mean((action - action_chunk) ** 2)
+    
+    # 'view' only works when the requested shape is compatible with the tensor's current memory layout.
+    # 'reshape' uses a view when possible, but copies the data if necessary, so it also works with non-contiguous tensors.
+    # To use 'view' with a non-contiguous tensor:
+    # x.contiguous().view(...)
+    
     def sample_actions(
         self,
         state: torch.Tensor,
         *,
         num_steps: int = 10,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        x = self.relu(self.linear1(state))
+        x = self.relu(self.linear2(x))
+        out = self.linear3(x)
+
+        return out.reshape(-1, self.chunk_size, self.action_dim)        
 
 
 class FlowMatchingPolicy(BasePolicy):
