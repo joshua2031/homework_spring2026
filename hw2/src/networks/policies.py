@@ -55,15 +55,39 @@ class MLPPolicy(nn.Module):
         )
 
         self.discrete = discrete
-
+    
+    # obs: (ob_dim,)
     @torch.no_grad()
     def get_action(self, obs: np.ndarray) -> np.ndarray:
         """Takes a single observation (as a numpy array) and returns a single action (as a numpy array)."""
         # TODO: implement get_action
-        action = None
+        obs_tensor = ptu.from_numpy(obs[None])
+        action_dist = self.forward(obs_tensor)
+        action = action_dist.sample()
+        return ptu.to_numpy(action)[0]
 
-        return action
+    """
+        base_dist = torch.distributions.Normal(mean, std)
+        -> base_dist.log_prob(action).shape == (B, ac_dim)
+        dist = torch.distributions.Independent(base_dist, 1)
+        -> dist.log_prob(action).shape == (B,)
+        
+        dist.log_prob(action) is the joint log probability of each action vector.
+    """
+    """
+        dist = torch.distributions.Categorical(
+        probs=torch.tensor([0.2, 0.7, 0.1])
+        )
 
+        dist.log_prob(torch.tensor(1)) == log(0.7)
+
+        dist = Normal(mean=0.0, std=1.0)
+        action = torch.tensor(0.5)
+
+        dist.log_prob(torch.tensor(0.5)) == log p(a=0.5 | mu=0,sigma=1)
+
+    """
+    # obs: (B, ob_dim)
     def forward(self, obs: torch.FloatTensor):
         """
         This function defines the forward pass of the network.  You can return anything you want, but you should be
@@ -72,10 +96,20 @@ class MLPPolicy(nn.Module):
         """
         if self.discrete:
             # TODO: define the forward pass for a policy with a discrete action space.
-            pass
+            logits = self.logits_net(obs)
+
+            # sample() -> action: integer index
+            return torch.distributions.Categorical(logits=logits)
         else:
             # TODO: define the forward pass for a policy with a continuous action space.
-            pass
+            mean = self.mean_net(obs)
+            std = torch.exp(self.logstd)
+
+            # sample() -> action: ac_dim vector
+            return torch.distributions.Independent(
+                torch.distributions.Normal(mean, std),
+                1,
+            )
 
     def update(self, obs: np.ndarray, actions: np.ndarray, *args, **kwargs) -> dict:
         """
@@ -88,6 +122,11 @@ class MLPPolicy(nn.Module):
 class MLPPolicyPG(MLPPolicy):
     """Policy subclass for the policy gradient algorithm."""
 
+    # obs: (B, ob_dim)
+    # actions:
+    # discrete: (B,)
+    # continuous: (B, ac_dim)
+    # advantages: (B,)
     def update(
         self,
         obs: np.ndarray,
@@ -100,10 +139,21 @@ class MLPPolicyPG(MLPPolicy):
         advantages = ptu.from_numpy(advantages)
 
         # TODO: compute the policy gradient actor loss
-        loss = None
+        if self.discrete:
+            actions = actions.long()
+
+        dist = self.forward(obs)
+
+        # dist.log_prob(actions):
+        # discrete: (B,)
+        # continuous: (B,)
+        log_prob = dist.log_prob(actions)
+        loss = -(log_prob * advantages).mean()
 
         # TODO: perform an optimizer step
-        pass
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
         return {
             "Actor Loss": loss.item(),
