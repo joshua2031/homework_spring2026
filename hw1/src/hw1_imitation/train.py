@@ -20,7 +20,7 @@ from hw1_imitation.data import (
     load_pusht_zarr,
 )
 from hw1_imitation.model import build_policy, PolicyType
-from hw1_imitation.evaluation import Logger
+from hw1_imitation.evaluation import Logger, evaluate_policy
 
 LOGDIR_PREFIX = "exp"
 
@@ -88,7 +88,12 @@ def config_to_dict(config: TrainConfig) -> dict[str, Any]:
 
 def run_training(config: TrainConfig) -> None:
     set_seed(config.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     print(f"Using device: {device}")
 
     zarr_path = download_pusht(config.data_dir)
@@ -103,6 +108,9 @@ def run_training(config: TrainConfig) -> None:
         normalizer=normalizer,
     )
 
+    # Returns:
+    # state: (B, state_dim)
+    # action_chunk: (B, chunk_size, action_dim)
     loader = DataLoader(
         dataset,
         batch_size=config.batch_size,
@@ -128,6 +136,62 @@ def run_training(config: TrainConfig) -> None:
     logger = Logger(log_dir)
 
     ### TODO: PUT YOUR MAIN TRAINING LOOP HERE ###
+
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=config.lr,
+        weight_decay=config.weight_decay,
+    )
+
+    step = 0
+
+    for epoch in range(config.num_epochs):
+        model.train()
+        for state, action_chunk in loader:
+            state = state.to(device)
+            action_chunk = action_chunk.to(device)
+
+            optimizer.zero_grad()
+            loss = model.compute_loss(state, action_chunk)
+            loss.backward()
+            optimizer.step()
+
+            step += 1
+            if step % config.log_interval == 0:
+                logger.log(
+                    {
+                        "train/loss": loss.item(),
+                        "eval/mean_reward": np.nan,
+                    },
+                    step=step,
+                )
+
+            if step % config.eval_interval == 0:
+                evaluate_policy(
+                    model, 
+                    normalizer, 
+                    device, 
+                    config.chunk_size, 
+                    config.video_size, 
+                    config.num_video_episodes, 
+                    config.flow_num_steps,
+                    step=step,
+                    logger=logger,
+                    )
+                model.train()
+
+    if step % config.eval_interval != 0:
+        evaluate_policy(
+            model,
+            normalizer,
+            device,
+            config.chunk_size,
+            config.video_size,
+            config.num_video_episodes,
+            config.flow_num_steps,
+            step=step,
+            logger=logger,
+        )
 
     logger.dump_for_grading()
 

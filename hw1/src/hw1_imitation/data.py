@@ -21,7 +21,9 @@ ZARR_RELATIVE_PATH = Path("pusht") / "pusht_cchi_v7_replay.zarr"
 class Normalizer:
     """Feature-wise normalizer for states and actions."""
 
-    # fields
+    # fields: initialized from the dataset when `Normalizer.from_data()` creates the object.
+    # state_mean, state_std: (5,)
+    # action_mean, action_std: (2,)
     state_mean: np.ndarray
     state_std: np.ndarray
     action_mean: np.ndarray
@@ -119,6 +121,7 @@ class PushtChunkDataset(Dataset):
     def __len__(self) -> int:
         return len(self.indices)
 
+    # 0 <= idx < len(self.indices)
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         t = int(self.indices[idx])
         state = self.states[t]
@@ -129,6 +132,8 @@ class PushtChunkDataset(Dataset):
             action_chunk = self.normalizer.normalize_action(action_chunk)
 
         return (
+            # (state_dim,)
             torch.from_numpy(state).float(),
+            # (chunk_size, action_dim)
             torch.from_numpy(action_chunk).float(),
         )

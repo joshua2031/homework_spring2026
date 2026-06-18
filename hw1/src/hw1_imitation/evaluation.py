@@ -164,6 +164,7 @@ def evaluate_policy(
     action_high = env.action_space.high
 
     for ep_idx in range(NUM_EVAL_EPISODES):
+        # environment initialization
         obs, _ = env.reset(seed=ep_idx)
         done = False
         chunk_index = chunk_size
@@ -174,17 +175,21 @@ def evaluate_policy(
 
         while not done:
             if action_chunk is None or chunk_index >= chunk_size:
+                # state: (state_dim, )
                 state = (
                     torch.from_numpy(normalizer.normalize_state(obs)).float().to(device)
                 )
                 with torch.no_grad():
+                    # pred_chunk: (chunk_size, action_dim)
                     pred_chunk = (
                         model.sample_actions(
+                            # state.unsqueeze(0): (1, state_dim)
                             state.unsqueeze(0), num_steps=flow_num_steps
                         )
                         .cpu()
                         .numpy()[0]
                     )
+                # action_chunk: (chunk_size, action_dim)
                 action_chunk = normalizer.denormalize_action(pred_chunk)
                 action_chunk = np.clip(action_chunk, action_low, action_high)
                 chunk_index = 0
