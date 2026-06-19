@@ -57,6 +57,9 @@ class MLPPolicy(nn.Module):
         self.discrete = discrete
     
     # obs: (ob_dim,)
+    # Returns:
+    # discrete: () == scalar
+    # continuous: (ac_dim,)
     @torch.no_grad()
     def get_action(self, obs: np.ndarray) -> np.ndarray:
         """Takes a single observation (as a numpy array) and returns a single action (as a numpy array)."""
@@ -106,6 +109,8 @@ class MLPPolicy(nn.Module):
             std = torch.exp(self.logstd)
 
             # sample() -> action: ac_dim vector
+            # torch.distributions.Normal(mean, std): sample() -> action: ac_dim vector
+            # Independent's role: changing log_prob's dimension
             return torch.distributions.Independent(
                 torch.distributions.Normal(mean, std),
                 1,
