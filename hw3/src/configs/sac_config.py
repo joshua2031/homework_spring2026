@@ -58,7 +58,7 @@ def sac_config(
     def make_actor(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
         assert len(observation_shape) == 1
         if actor_fixed_std is not None:
-            return MLPPolicy(
+            return MLPPolicy( 
                 ac_dim=action_dim,
                 ob_dim=np.prod(observation_shape),
                 discrete=False,
