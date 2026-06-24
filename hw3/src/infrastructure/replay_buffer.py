@@ -92,6 +92,7 @@ class MemoryEfficientReplayBuffer:
         # (It's okay though because the unused data will be paged out)
         self.max_framebuffer_size = 2 * capacity
 
+        # Atari: 4
         self.frame_history_len = frame_history_len
         self.size = 0
         self.actions = None
@@ -103,6 +104,7 @@ class MemoryEfficientReplayBuffer:
         self.framebuffer = None
         self.observation_shape = None
 
+        # not used in this code
         self.current_trajectory_begin = None
         self.current_trajectory_framebuffer_begin = None
         self.framebuffer_idx = None
@@ -110,23 +112,32 @@ class MemoryEfficientReplayBuffer:
         self.recent_observation_framebuffer_idcs = None
 
     def sample(self, batch_size):
+        # rand_indices.shape == (batch_size,)
         rand_indices = (
             np.random.randint(0, self.size, size=(batch_size,)) % self.max_size
         )
 
+        # (batch_size, frame_history_len)
         observation_framebuffer_idcs = (
             self.observation_framebuffer_idcs[rand_indices] % self.max_framebuffer_size
         )
+
+        # (batch_size, frame_history_len)
         next_observation_framebuffer_idcs = (
             self.next_observation_framebuffer_idcs[rand_indices]
             % self.max_framebuffer_size
         )
 
         return {
+            # (batch_size, frame_history_len, H, W)
             "observations": self.framebuffer[observation_framebuffer_idcs],
+            # (batch_size,)
             "actions": self.actions[rand_indices],
+            # (batch_size,)
             "rewards": self.rewards[rand_indices],
+            # (batch_size, frame_history_len, H, W)
             "next_observations": self.framebuffer[next_observation_framebuffer_idcs],
+            # (batch_size,)
             "dones": self.dones[rand_indices],
         }
 
@@ -239,6 +250,7 @@ class MemoryEfficientReplayBuffer:
         assert next_observation.dtype == np.uint8, "Observation should be uint8 (0-255)"
 
         if self.actions is None:
+            # (max_size, )
             self.actions = np.empty((self.max_size, *action.shape), dtype=action.dtype)
             self.rewards = np.empty((self.max_size, *reward.shape), dtype=reward.dtype)
             self.dones = np.empty((self.max_size, *done.shape), dtype=done.dtype)

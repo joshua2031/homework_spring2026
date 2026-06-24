@@ -47,7 +47,8 @@ def basic_dqn_config(
         optimizer: torch.optim.Optimizer,
     ) -> torch.optim.lr_scheduler._LRScheduler:
         return torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0)
-
+    
+    # epsilon value in epsilon-greedy policy
     exploration_schedule = PiecewiseSchedule(
         [
             (0, 1.0),
@@ -137,6 +138,9 @@ def atari_dqn_config(
     def make_lr_schedule(
         optimizer: torch.optim.Optimizer,
     ) -> torch.optim.lr_scheduler._LRScheduler:
+        # 0 ~ 20000: 1
+        # 20000 ~ total_steps / 2: linearly decay from 1 to 5e-1
+        # total_steps / 2 ~ : 5e-1
         return torch.optim.lr_scheduler.LambdaLR(
             optimizer,
             PiecewiseSchedule(
@@ -148,7 +152,10 @@ def atari_dqn_config(
                 outside_value=5e-1,
             ).value,
         )
-
+    
+    # 0 ~ 20000: 1
+    # 20000 ~ total_steps / 2: linearly decay from 1 to 0.01
+    # total_steps / 2 ~ : 0.01
     exploration_schedule = PiecewiseSchedule(
         [
             (0, 1.0),
